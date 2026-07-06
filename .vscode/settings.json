@@ -1,0 +1,36 @@
+{
+    "java.compile.nullAnalysis.mode": "disabled",
+    "java.configuration.updateBuildConfiguration": "disabled",
+    "files.watcherExclude": {
+        "**/.git/objects/**": true,
+        "**/.git/subtree-cache/**": true,
+        "**/node_modules/**": true,
+        "**/.vite/**": true,
+        "**/dist/**": true,
+        "**/target/**": true,
+        "**/frontend_all_code.txt": true,
+        "**/backend_all_code.txt": true
+    },
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/.vite": true,
+        "**/dist": true,
+        "**/target": true,
+        "**/frontend_all_code.txt": true,
+        "**/backend_all_code.txt": true
+    },
+    "files.exclude": {
+        "**/.vite": true,
+        "**/dist": true,
+        "**/target": true
+    },
+    "java.import.exclusions": [
+        "**/node_modules/**",
+        "**/target/**",
+        "**/dist/**",
+        "**/.vite/**"
+    ],
+    "java.referencesCodeLens.enabled": false,
+    "java.implementationsCodeLens.enabled": false,
+    "typescript.tsserver.maxTsServerMemory": 4096
+}

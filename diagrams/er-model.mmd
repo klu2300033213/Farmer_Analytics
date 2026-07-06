@@ -1,0 +1,75 @@
+﻿erDiagram
+    USER {
+      bigint id PK
+      string name
+      string email UK
+      string password
+      string role
+    }
+
+    CROP_PRICE {
+      bigint id PK
+      string crop_name
+      double price
+      int year
+      string month
+      string season
+      string location
+    }
+
+    MARKET_PRICE_LIVE {
+      bigint id PK
+      string state
+      string district
+      string mandi
+      string crop_name
+      double min_price
+      double modal_price
+      double max_price
+      date price_date
+    }
+
+    ML_MODEL_SNAPSHOT {
+      bigint id PK
+      string crop_name UK
+      string model_version
+      string weights_csv
+      double training_mape
+      datetime trained_at
+    }
+
+    CONTACT_MESSAGE {
+      bigint id PK
+      string name
+      string email
+      string subject
+      string message
+      string status
+      string admin_reply
+      datetime created_at
+      datetime replied_at
+    }
+
+    PESTICIDE_PRODUCT {
+      bigint id PK
+      string registration_number
+      string product_name
+      string active_ingredient
+      string approved_crops
+      string target_pests
+      string legal_status
+    }
+
+    PESTICIDE_IMPORT_LOG {
+      bigint id PK
+      string file_name
+      int total_rows
+      int inserted_rows
+      int updated_rows
+      int skipped_rows
+      datetime imported_at
+    }
+
+    USER ||--o{ CONTACT_MESSAGE : submits
+    CROP_PRICE ||--o{ ML_MODEL_SNAPSHOT : trains
+    PESTICIDE_IMPORT_LOG ||--o{ PESTICIDE_PRODUCT : imports

@@ -1,0 +1,1381 @@
+package com.farmer.analytics.controller;
+
+import com.farmer.analytics.model.MarketPriceLive;
+import com.farmer.analytics.model.MandiSummaryResponse;
+import com.farmer.analytics.repository.MarketPriceLiveRepository;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.util.Comparator;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api")
+@CrossOrigin(origins = "http://localhost:5173")
+public class LiveMarketController {
+
+    private final MarketPriceLiveRepository marketPriceLiveRepository;
+
+    public LiveMarketController(MarketPriceLiveRepository marketPriceLiveRepository) {
+        this.marketPriceLiveRepository = marketPriceLiveRepository;
+    }
+
+    // ✅ Crop dropdown
+    @GetMapping("/live/crops")
+    public List<String> getLiveCrops() {
+        return marketPriceLiveRepository.findAllCrops();
+    }
+
+    // ✅ Best & Worst mandi (latest day only)
+    @GetMapping("/live/mandi-summary")
+    public MandiSummaryResponse mandiSummary(@RequestParam String crop) {
+
+        List<LocalDate> dates = marketPriceLiveRepository.findDatesByCrop(crop);
+
+        if (dates.isEmpty()) {
+            return new MandiSummaryResponse(
+                    crop,
+                    null, // ✅ date is null when no data
+                    "N/A", 0, "N/A",
+                    "N/A", 0, "N/A",
+                    "No mandi data available yet."
+            );
+        }
+
+        // ✅ Latest available date
+        LocalDate latestDate = dates.get(0);
+
+        List<MarketPriceLive> list =
+                marketPriceLiveRepository.findByCropNameIgnoreCase(crop)
+                        .stream()
+                        .filter(p -> p.getPriceDate().equals(latestDate))
+                        .toList();
+
+        MarketPriceLive best =
+                list.stream()
+                        .max(Comparator.comparingDouble(MarketPriceLive::getModalPrice))
+                        .get();
+
+        MarketPriceLive worst =
+                list.stream()
+                        .min(Comparator.comparingDouble(MarketPriceLive::getModalPrice))
+                        .get();
+
+        String advice =
+                "Sell at " + best.getMandi() +
+                " mandi in " + best.getDistrict() +
+                " for best price on " + latestDate;
+
+        // ✅ DATE IS NOW SENT TO FRONTEND
+        return new MandiSummaryResponse(
+                crop,
+                latestDate,
+                best.getMandi(), best.getModalPrice(), best.getDistrict(),
+                worst.getMandi(), worst.getModalPrice(), worst.getDistrict(),
+                advice
+        );
+    }
+
+    // ✅ Date-wise modal price trend
+    @GetMapping("/live/price-trend")
+    public List<Object[]> priceTrend(@RequestParam String crop) {
+        return marketPriceLiveRepository.findDateWisePriceTrend(crop);
+    }
+
+    // ✅ District comparison (latest date)
+    @GetMapping("/live/district-compare")
+    public List<Object[]> districtCompare(@RequestParam String crop) {
+        return marketPriceLiveRepository.findDistrictComparison(crop);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+import { useEffect, useState } from "react";
+
+function LiveMandiCard({ crop }) {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    if (!crop) return;
+
+    fetch(`http://localhost:8080/api/live/mandi-summary?crop=${crop}`)
+      .then(res => res.json())
+      .then(json => setData(json));
+  }, [crop]);
+
+  if (!data) return null;
+
+  const noData = data.bestPrice === 0;
+
+  return (
+    <div className="card mandi-card premium">
+      
+      {/* ===== HEADER ===== */}
+      <div className="mandi-header">
+        <h3>📍 Best Mandi Today</h3>
+        <span className="mandi-sub">Live arrival & price snapshot</span>
+      </div>
+
+      {/* ===== META (UPDATED ONLY HERE) ===== */}
+      <div className="mandi-meta">
+        <span className="crop-chip">
+          🌾 {data.crop}
+        </span>
+
+        {data.date && (
+          <span className="date-chip">
+            📅 {data.date}
+          </span>
+        )}
+      </div>
+
+      {noData ? (
+        <div className="mandi-empty">
+          No mandi data available for today.
+        </div>
+      ) : (
+        <>
+          {/* ===== PRICE GRID ===== */}
+          <div className="mandi-price-grid">
+            <div className="mandi-box best">
+              <span className="label">Best Price</span>
+              <strong>₹{data.bestPrice}</strong>
+              <span className="unit">per Quintal</span>
+              <span className="location">{data.bestMandi}</span>
+            </div>
+
+            <div className="mandi-box worst">
+              <span className="label">Lowest Price</span>
+              <strong>₹{data.worstPrice}</strong>
+              <span className="unit">per Quintal</span>
+              <span className="location">{data.worstMandi}</span>
+            </div>
+          </div>
+
+          {/* ===== DECISION INSIGHT ===== */}
+          <div className="mandi-advice">
+            <span className="advice-label">💡 Selling Insight</span>
+            <p>{data.recommendation}</p>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+export default LiveMandiCard;
+
+
+import { useEffect, useState } from "react";
+
+function BestSellingDayCard({ crop }) {
+  const [trend, setTrend] = useState([]);
+
+  useEffect(() => {
+    if (!crop) return;
+
+    fetch(`http://localhost:8080/api/live/price-trend?crop=${crop}`)
+      .then(res => res.json())
+      .then(data => setTrend(data));
+  }, [crop]);
+
+  if (!trend || trend.length === 0) return null;
+
+  const best = trend.reduce((a, b) => (b[1] > a[1] ? b : a));
+
+  return (
+    <div className="card best-day-card premium">
+
+      {/* HEADER */}
+      <div className="best-day-header">
+        <h3>🌟 Best Selling Day</h3>
+        <span className="best-day-chip">HIGH CONFIDENCE</span>
+      </div>
+
+      {/* HIGHLIGHTED DATA STRIP */}
+      <div className="best-day-highlights">
+        <span className="highlight-chip crop">
+          🌾 {crop}
+        </span>
+
+        <span className="highlight-chip date">
+          📅 {best[0]}
+        </span>
+      </div>
+
+      {/* PRIMARY VALUE */}
+      <div className="best-day-metric">
+        <span className="metric-label">Peak Market Price</span>
+
+        <div className="metric-value">
+          ₹{best[1]}
+          <span className="metric-unit"> / Quintal</span>
+        </div>
+      </div>
+
+      {/* INSIGHT */}
+      <div className="best-day-insight">
+        <span className="insight-icon">💡</span>
+        <p>
+          This date recorded the <strong>highest selling price</strong> for{" "}
+          <strong>{crop}</strong>.  
+          Selling near this window can significantly improve returns.
+        </p>
+      </div>
+
+    </div>
+  );
+}
+
+export default BestSellingDayCard;
+
+
+
+
+
+
+
+
+
+
+
+
+
+package com.farmer.analytics.controller;
+
+import com.farmer.analytics.model.MarketPriceLive;
+import com.farmer.analytics.model.MandiSummaryResponse;
+import com.farmer.analytics.repository.MarketPriceLiveRepository;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.util.Comparator;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api")
+@CrossOrigin(origins = "http://localhost:5173")
+public class LiveMarketController {
+
+    private final MarketPriceLiveRepository marketPriceLiveRepository;
+
+    public LiveMarketController(MarketPriceLiveRepository marketPriceLiveRepository) {
+        this.marketPriceLiveRepository = marketPriceLiveRepository;
+    }
+
+    // ✅ Crop dropdown
+    @GetMapping("/live/crops")
+    public List<String> getLiveCrops() {
+        return marketPriceLiveRepository.findAllCrops();
+    }
+
+    // ✅ Best & Worst mandi (latest day only)
+    @GetMapping("/live/mandi-summary")
+    public MandiSummaryResponse mandiSummary(@RequestParam String crop) {
+
+        List<LocalDate> dates = marketPriceLiveRepository.findDatesByCrop(crop);
+
+        if (dates.isEmpty()) {
+            return new MandiSummaryResponse(
+                    crop,
+                    null, // ✅ date is null when no data
+                    "N/A", 0, "N/A",
+                    "N/A", 0, "N/A",
+                    "No mandi data available yet."
+            );
+        }
+
+        // ✅ Latest available date
+        LocalDate latestDate = dates.get(0);
+
+        List<MarketPriceLive> list =
+                marketPriceLiveRepository.findByCropNameIgnoreCase(crop)
+                        .stream()
+                        .filter(p -> p.getPriceDate().equals(latestDate))
+                        .toList();
+
+        MarketPriceLive best =
+                list.stream()
+                        .max(Comparator.comparingDouble(MarketPriceLive::getModalPrice))
+                        .get();
+
+        MarketPriceLive worst =
+                list.stream()
+                        .min(Comparator.comparingDouble(MarketPriceLive::getModalPrice))
+                        .get();
+
+        String advice =
+                "Sell at " + best.getMandi() +
+                " mandi in " + best.getDistrict() +
+                " for best price on " + latestDate;
+
+        // ✅ DATE IS NOW SENT TO FRONTEND
+        return new MandiSummaryResponse(
+                crop,
+                latestDate,
+                best.getMandi(), best.getModalPrice(), best.getDistrict(),
+                worst.getMandi(), worst.getModalPrice(), worst.getDistrict(),
+                advice
+        );
+    }
+
+    // ✅ Date-wise modal price trend
+    @GetMapping("/live/price-trend")
+    public List<Object[]> priceTrend(@RequestParam String crop) {
+        return marketPriceLiveRepository.findDateWisePriceTrend(crop);
+    }
+
+    // ✅ District comparison (latest date)
+    @GetMapping("/live/district-compare")
+    public List<Object[]> districtCompare(@RequestParam String crop) {
+        return marketPriceLiveRepository.findDistrictComparison(crop);
+    }
+}
+
+
+
+
+
+
+
+
+package com.farmer.analytics.model;
+
+import com.fasterxml.jackson.annotation.JsonFormat;
+import java.time.LocalDate;
+
+public class MandiSummaryResponse {
+
+    private String crop;
+
+    @JsonFormat(pattern = "yyyy-MM-dd") // ✅ frontend-friendly
+    private LocalDate date;
+
+    private String bestMandi;
+    private double bestPrice;
+    private String bestDistrict;
+
+    private String worstMandi;
+    private double worstPrice;
+    private String worstDistrict;
+
+    private String recommendation;
+
+    // ✅ REQUIRED BY JACKSON (DO NOT REMOVE)
+    public MandiSummaryResponse() {
+    }
+
+    // ✅ YOUR EXISTING CONSTRUCTOR (UNCHANGED)
+    public MandiSummaryResponse(
+            String crop,
+            LocalDate date,
+            String bestMandi, double bestPrice, String bestDistrict,
+            String worstMandi, double worstPrice, String worstDistrict,
+            String recommendation) {
+
+        this.crop = crop;
+        this.date = date;
+        this.bestMandi = bestMandi;
+        this.bestPrice = bestPrice;
+        this.bestDistrict = bestDistrict;
+        this.worstMandi = worstMandi;
+        this.worstPrice = worstPrice;
+        this.worstDistrict = worstDistrict;
+        this.recommendation = recommendation;
+    }
+
+    public String getCrop() { return crop; }
+    public LocalDate getDate() { return date; }
+    public String getBestMandi() { return bestMandi; }
+    public double getBestPrice() { return bestPrice; }
+    public String getBestDistrict() { return bestDistrict; }
+    public String getWorstMandi() { return worstMandi; }
+    public double getWorstPrice() { return worstPrice; }
+    public String getWorstDistrict() { return worstDistrict; }
+    public String getRecommendation() { return recommendation; }
+}
+
+
+latest
+
+
+
+package com.farmer.analytics.repository;
+
+import com.farmer.analytics.model.MarketPriceLive;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+
+import java.time.LocalDate;
+import java.util.List;
+
+public interface MarketPriceLiveRepository
+        extends JpaRepository<MarketPriceLive, Integer> {
+
+    List<MarketPriceLive> findByCropNameIgnoreCase(String cropName);
+
+    List<MarketPriceLive> findByPriceDate(LocalDate date);
+
+    @Query("""
+        SELECT DISTINCT m.cropName
+        FROM MarketPriceLive m
+        WHERE m.cropName IS NOT NULL
+        ORDER BY m.cropName
+    """)
+    List<String> findAllCrops();
+
+    @Query("""
+        SELECT DISTINCT m.priceDate
+        FROM MarketPriceLive m
+        WHERE LOWER(m.cropName)=LOWER(?1)
+        ORDER BY m.priceDate DESC
+    """)
+    List<LocalDate> findDatesByCrop(String crop);
+
+    // ✅ FIX — FORCE DB LEVEL LATEST DATE
+    @Query("""
+        SELECT MAX(m.priceDate)
+        FROM MarketPriceLive m
+        WHERE LOWER(m.cropName)=LOWER(?1)
+    """)
+    LocalDate findLatestDateByCrop(String crop);
+
+    @Query("""
+        SELECT m.priceDate, AVG(m.modalPrice)
+        FROM MarketPriceLive m
+        WHERE LOWER(m.cropName)=LOWER(?1)
+        GROUP BY m.priceDate
+        ORDER BY m.priceDate
+    """)
+    List<Object[]> findDateWisePriceTrend(String crop);
+
+    @Query("""
+        SELECT m.district, AVG(m.modalPrice)
+        FROM MarketPriceLive m
+        WHERE LOWER(m.cropName)=LOWER(?1)
+          AND m.priceDate = (
+              SELECT MAX(p.priceDate)
+              FROM MarketPriceLive p
+              WHERE LOWER(p.cropName)=LOWER(?1)
+          )
+        GROUP BY m.district
+    """)
+    List<Object[]> findDistrictComparison(String crop);
+}
+
+
+
+package com.farmer.analytics.controller;
+
+import com.farmer.analytics.model.MarketPriceLive;
+import com.farmer.analytics.model.MandiSummaryResponse;
+import com.farmer.analytics.repository.MarketPriceLiveRepository;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.util.Comparator;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api")
+@CrossOrigin(origins = "http://localhost:5173")
+public class LiveMarketController {
+
+    private final MarketPriceLiveRepository marketPriceLiveRepository;
+
+    public LiveMarketController(MarketPriceLiveRepository marketPriceLiveRepository) {
+        this.marketPriceLiveRepository = marketPriceLiveRepository;
+    }
+
+    @GetMapping("/live/crops")
+    public List<String> getLiveCrops() {
+        return marketPriceLiveRepository.findAllCrops();
+    }
+
+    @GetMapping("/live/mandi-summary")
+    public MandiSummaryResponse mandiSummary(@RequestParam String crop) {
+
+        // ✅ FIX — DB LEVEL MAX DATE
+        LocalDate latestDate =
+                marketPriceLiveRepository.findLatestDateByCrop(crop);
+
+        if (latestDate == null) {
+            return new MandiSummaryResponse(
+                    crop,
+                    null,
+                    "N/A", 0, "N/A",
+                    "N/A", 0, "N/A",
+                    "No mandi data available yet."
+            );
+        }
+
+        List<MarketPriceLive> list =
+                marketPriceLiveRepository.findByCropNameIgnoreCase(crop)
+                        .stream()
+                        .filter(p -> p.getPriceDate().equals(latestDate))
+                        .toList();
+
+        MarketPriceLive best =
+                list.stream()
+                        .max(Comparator.comparingDouble(MarketPriceLive::getModalPrice))
+                        .get();
+
+        MarketPriceLive worst =
+                list.stream()
+                        .min(Comparator.comparingDouble(MarketPriceLive::getModalPrice))
+                        .get();
+
+        String advice =
+                "Sell at " + best.getMandi() +
+                " mandi in " + best.getDistrict() +
+                " for best price on " + latestDate;
+
+        return new MandiSummaryResponse(
+                crop,
+                latestDate, // ✅ FIX
+                best.getMandi(), best.getModalPrice(), best.getDistrict(),
+                worst.getMandi(), worst.getModalPrice(), worst.getDistrict(),
+                advice
+        );
+    }
+
+    @GetMapping("/live/price-trend")
+    public List<Object[]> priceTrend(@RequestParam String crop) {
+        return marketPriceLiveRepository.findDateWisePriceTrend(crop);
+    }
+
+    @GetMapping("/live/district-compare")
+    public List<Object[]> districtCompare(@RequestParam String crop) {
+        return marketPriceLiveRepository.findDistrictComparison(crop);
+    }
+}
+
+
+
+import { useEffect, useState } from "react";
+
+function FarmerForm({ setResult, setSelectedCrop, onAnalyzeSuccess }) {
+  const [crop, setCrop] = useState("");
+  const [cropList, setCropList] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetch("http://localhost:8080/api/live/crops")
+      .then(res => res.json())
+      .then(list => {
+        setCropList(list);
+        if (list.length > 0) setCrop(list[0]);
+      })
+      .catch(console.error);
+  }, []);
+
+  const analyze = async () => {
+    if (!crop) return;
+
+    setLoading(true);
+    setSelectedCrop(crop);
+
+    try {
+      const res = await fetch(
+        `http://localhost:8080/api/analyze?crop=${encodeURIComponent(crop)}`
+      );
+      const data = await res.json();
+      setResult(data);
+
+      // 🔥 PAGE SWITCH HAPPENS HERE
+      onAnalyzeSuccess();
+
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="analytics-page">
+      <div className="card">
+        <h3>Select Crop</h3>
+
+        <select value={crop} onChange={e => setCrop(e.target.value)}>
+          {cropList.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+
+        <button onClick={analyze} disabled={loading}>
+          {loading ? "Analyzing..." : "Analyze"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default FarmerForm;
+
+
+
+latest
+
+
+
+
+
+package com.farmer.analytics.controller;
+
+import com.farmer.analytics.model.MarketPriceLive;
+import com.farmer.analytics.model.MandiSummaryResponse;
+import com.farmer.analytics.repository.MarketPriceLiveRepository;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.util.Comparator;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api")
+@CrossOrigin(origins = "http://localhost:5173")
+public class LiveMarketController {
+
+    private final MarketPriceLiveRepository repo;
+
+    public LiveMarketController(MarketPriceLiveRepository repo) {
+        this.repo = repo;
+    }
+
+    // =====================================================
+    // 1️⃣ CROPS DROPDOWN
+    // =====================================================
+    @GetMapping("/live/crops")
+    public List<String> getCrops() {
+        return repo.findAllCrops();
+    }
+
+    // =====================================================
+    // 2️⃣ DISTRICTS BASED ON CROP
+    // =====================================================
+    @GetMapping("/live/districts")
+    public List<String> getDistrictsByCrop(@RequestParam String crop) {
+        return repo.findDistrictsByCrop(crop);
+    }
+
+    // =====================================================
+    // 3️⃣ DATES BASED ON CROP + DISTRICT
+    // =====================================================
+    @GetMapping("/live/dates")
+    public List<LocalDate> getDatesByCropAndDistrict(
+            @RequestParam String crop,
+            @RequestParam String district
+    ) {
+        return repo.findDatesByCropAndDistrict(crop, district);
+    }
+
+    // =====================================================
+    // 4️⃣ FINAL RESULT (CROP + DISTRICT + DATE)
+    // =====================================================
+    @GetMapping("/live/filter")
+    public List<MarketPriceLive> filterByCropDistrictDate(
+            @RequestParam String crop,
+            @RequestParam String district,
+            @RequestParam LocalDate date
+    ) {
+        return repo.findByCropDistrictAndDate(crop, district, date);
+    }
+
+    // =====================================================
+    // 5️⃣ BEST & WORST MANDI (LATEST DATE – AUTO)
+    // =====================================================
+    @GetMapping("/live/mandi-summary")
+    public MandiSummaryResponse mandiSummary(@RequestParam String crop) {
+
+        LocalDate latestDate = repo.findLatestDateByCrop(crop);
+
+        if (latestDate == null) {
+            return new MandiSummaryResponse(
+                    crop,
+                    null,
+                    "N/A", 0, "N/A",
+                    "N/A", 0, "N/A",
+                    "No mandi data available yet."
+            );
+        }
+
+        List<MarketPriceLive> list =
+                repo.findByCropNameIgnoreCase(crop)
+                        .stream()
+                        .filter(p -> p.getPriceDate().equals(latestDate))
+                        .toList();
+
+        MarketPriceLive best =
+                list.stream()
+                        .max(Comparator.comparingDouble(MarketPriceLive::getModalPrice))
+                        .get();
+
+        MarketPriceLive worst =
+                list.stream()
+                        .min(Comparator.comparingDouble(MarketPriceLive::getModalPrice))
+                        .get();
+
+        String advice =
+                "Sell at " + best.getMandi() +
+                " mandi in " + best.getDistrict() +
+                " for best price on " + latestDate;
+
+        return new MandiSummaryResponse(
+                crop,
+                latestDate,
+                best.getMandi(), best.getModalPrice(), best.getDistrict(),
+                worst.getMandi(), worst.getModalPrice(), worst.getDistrict(),
+                advice
+        );
+    }
+
+    // =====================================================
+    // 6️⃣ PRICE TREND (DATE-WISE)
+    // =====================================================
+    @GetMapping("/live/price-trend")
+    public List<Object[]> priceTrend(@RequestParam String crop) {
+        return repo.findDateWisePriceTrend(crop);
+    }
+
+    // =====================================================
+    // 7️⃣ DISTRICT COMPARISON (LATEST DATE)
+    // =====================================================
+    @GetMapping("/live/district-compare")
+    public List<Object[]> districtCompare(@RequestParam String crop) {
+        return repo.findDistrictComparison(crop);
+    }
+}
+
+
+
+
+
+package com.farmer.analytics.repository;
+
+import com.farmer.analytics.model.MarketPriceLive;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+
+import java.time.LocalDate;
+import java.util.List;
+
+public interface MarketPriceLiveRepository
+        extends JpaRepository<MarketPriceLive, Integer> {
+
+    // ===============================
+    // EXISTING METHODS (UNCHANGED)
+    // ===============================
+
+    List<MarketPriceLive> findByCropNameIgnoreCase(String cropName);
+
+    List<MarketPriceLive> findByPriceDate(LocalDate date);
+
+    @Query("""
+        SELECT DISTINCT m.cropName
+        FROM MarketPriceLive m
+        WHERE m.cropName IS NOT NULL
+        ORDER BY m.cropName
+    """)
+    List<String> findAllCrops();
+
+    @Query("""
+        SELECT DISTINCT m.priceDate
+        FROM MarketPriceLive m
+        WHERE LOWER(m.cropName)=LOWER(?1)
+        ORDER BY m.priceDate DESC
+    """)
+    List<LocalDate> findDatesByCrop(String crop);
+
+    // 🔥 DB decides latest date (already fixed)
+    @Query("""
+        SELECT MAX(m.priceDate)
+        FROM MarketPriceLive m
+        WHERE LOWER(m.cropName)=LOWER(?1)
+    """)
+    LocalDate findLatestDateByCrop(String crop);
+
+    @Query("""
+        SELECT m.priceDate, AVG(m.modalPrice)
+        FROM MarketPriceLive m
+        WHERE LOWER(m.cropName)=LOWER(?1)
+        GROUP BY m.priceDate
+        ORDER BY m.priceDate
+    """)
+    List<Object[]> findDateWisePriceTrend(String crop);
+
+    @Query("""
+        SELECT m.district, AVG(m.modalPrice)
+        FROM MarketPriceLive m
+        WHERE LOWER(m.cropName)=LOWER(?1)
+          AND m.priceDate = (
+              SELECT MAX(p.priceDate)
+              FROM MarketPriceLive p
+              WHERE LOWER(p.cropName)=LOWER(?1)
+          )
+        GROUP BY m.district
+    """)
+    List<Object[]> findDistrictComparison(String crop);
+
+    // ===============================
+    // ✅ NEW METHODS (ADDED ONLY)
+    // ===============================
+
+    // 1️⃣ Districts by selected crop
+    @Query("""
+        SELECT DISTINCT m.district
+        FROM MarketPriceLive m
+        WHERE LOWER(m.cropName)=LOWER(?1)
+        ORDER BY m.district
+    """)
+    List<String> findDistrictsByCrop(String crop);
+
+    // 2️⃣ Dates by selected crop + district
+    @Query("""
+        SELECT DISTINCT m.priceDate
+        FROM MarketPriceLive m
+        WHERE LOWER(m.cropName)=LOWER(?1)
+          AND LOWER(m.district)=LOWER(?2)
+        ORDER BY m.priceDate DESC
+    """)
+    List<LocalDate> findDatesByCropAndDistrict(String crop, String district);
+
+    // 3️⃣ Final filtered result (crop + district + date)
+    @Query("""
+        SELECT m
+        FROM MarketPriceLive m
+        WHERE LOWER(m.cropName)=LOWER(?1)
+          AND LOWER(m.district)=LOWER(?2)
+          AND m.priceDate = ?3
+    """)
+    List<MarketPriceLive> findByCropDistrictAndDate(
+            String crop,
+            String district,
+            LocalDate date
+    );
+}
+
+
+
+
+import { useEffect, useState } from "react";
+
+function FarmerForm({ setResult, setSelectedCrop, onAnalyzeSuccess }) {
+  const [crop, setCrop] = useState("");
+  const [district, setDistrict] = useState("");
+  const [date, setDate] = useState("");
+
+  const [cropList, setCropList] = useState([]);
+  const [districtList, setDistrictList] = useState([]);
+  const [dateList, setDateList] = useState([]);
+
+  const [loading, setLoading] = useState(false);
+
+  /* ===============================
+     LOAD CROPS (EXISTING)
+  ================================ */
+  useEffect(() => {
+    fetch("http://localhost:8080/api/live/crops")
+      .then(res => res.json())
+      .then(list => {
+        setCropList(list);
+        if (list.length > 0) setCrop(list[0]);
+      })
+      .catch(console.error);
+  }, []);
+
+  /* ===============================
+     LOAD DISTRICTS (NEW)
+  ================================ */
+  useEffect(() => {
+    if (!crop) return;
+
+    setSelectedCrop(crop); // 🔥 keep existing behavior
+
+    fetch(`http://localhost:8080/api/live/districts?crop=${crop}`)
+      .then(res => res.json())
+      .then(list => {
+        setDistrictList(list);
+        setDistrict("");
+        setDate("");
+        setDateList([]);
+      })
+      .catch(console.error);
+  }, [crop]);
+
+  /* ===============================
+     LOAD DATES (NEW)
+  ================================ */
+  useEffect(() => {
+    if (!crop || !district) return;
+
+    fetch(
+      `http://localhost:8080/api/live/dates?crop=${crop}&district=${district}`
+    )
+      .then(res => res.json())
+      .then(list => {
+        setDateList(list);
+        setDate("");
+      })
+      .catch(console.error);
+  }, [district]);
+
+  /* ===============================
+     ANALYZE (EXTENDED, SAFE)
+  ================================ */
+  const analyze = async () => {
+    if (!crop) return;
+
+    setLoading(true);
+
+    try {
+      let url;
+
+      // 🔥 IF USER SELECTS DISTRICT + DATE → FILTERED ANALYSIS
+      if (district && date) {
+        url = `http://localhost:8080/api/live/filter?crop=${crop}&district=${district}&date=${date}`;
+      } 
+      // 🔥 ELSE → FALLBACK TO EXISTING LOGIC
+      else {
+        url = `http://localhost:8080/api/analyze?crop=${encodeURIComponent(crop)}`;
+      }
+
+      const res = await fetch(url);
+      const data = await res.json();
+
+      setResult(data);
+      onAnalyzeSuccess(); // 🔥 unchanged
+
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="analytics-page">
+      <div className="card">
+        <h3>Select Crop</h3>
+
+        {/* CROP (EXISTING) */}
+        <select value={crop} onChange={e => setCrop(e.target.value)}>
+          {cropList.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+
+        {/* DISTRICT (NEW) */}
+        {districtList.length > 0 && (
+          <select
+            value={district}
+            onChange={e => setDistrict(e.target.value)}
+          >
+            <option value="">Select District</option>
+            {districtList.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        )}
+
+        {/* DATE (NEW) */}
+        {dateList.length > 0 && (
+          <select
+            value={date}
+            onChange={e => setDate(e.target.value)}
+          >
+            <option value="">Select Date</option>
+            {dateList.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        )}
+
+        <button onClick={analyze} disabled={loading}>
+          {loading ? "Analyzing..." : "Analyze"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default FarmerForm;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+package com.farmer.analytics.service;
+
+import com.farmer.analytics.model.CropPrice;
+import com.farmer.analytics.model.MarketPriceLive;
+import com.farmer.analytics.repository.CropPriceRepository;
+import com.farmer.analytics.repository.MarketPriceLiveRepository;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDate;
+import java.util.List;
+
+@Service
+public class AutoHistoryService {
+
+    private final MarketPriceLiveRepository liveRepo;
+    private final CropPriceRepository cropRepo;
+
+    public AutoHistoryService(
+            MarketPriceLiveRepository liveRepo,
+            CropPriceRepository cropRepo
+    ) {
+        this.liveRepo = liveRepo;
+        this.cropRepo = cropRepo;
+    }
+
+    // ⏰ Called by Scheduler
+    public void generateHistory() {
+
+        LocalDate today = LocalDate.now();
+
+        // 🔐 (kept – no removal)
+        List<CropPrice> existing =
+                cropRepo.findByCropNameIgnoreCase("DUMMY");
+
+        List<MarketPriceLive> todayPrices =
+                liveRepo.findByPriceDate(today);
+
+        if (todayPrices.isEmpty()) {
+            System.out.println("⚠ No live prices to convert today");
+            return;
+        }
+
+        for (MarketPriceLive mp : todayPrices) {
+
+            // ✅ REAL duplicate protection
+            boolean alreadyExists =
+                    cropRepo.existsByCropNameAndYearAndMonth(
+                            mp.getCropName(),
+                            today.getYear(),
+                            today.getMonth().name()
+                    );
+
+            if (alreadyExists) continue;
+
+            // ✅ Save only MODAL PRICE (market reality)
+            CropPrice cp = new CropPrice();
+            cp.setCropName(mp.getCropName());
+            cp.setPrice(mp.getModalPrice());
+            cp.setYear(today.getYear());
+            cp.setMonth(today.getMonth().name());
+            cp.setSeason(getSeason(today.getMonthValue()));
+            cp.setLocation(mp.getDistrict());
+
+            cropRepo.save(cp);
+        }
+
+        System.out.println("✅ Auto history generated from live mandi prices");
+    }
+
+    private String getSeason(int month) {
+        if (month <= 3) return "RABI";
+        if (month <= 6) return "SUMMER";
+        if (month <= 9) return "KHARIF";
+        return "POST-KHARIF";
+    }
+}
+
+
+
+latest
+
+
+
+import { useEffect, useState } from "react";
+import Navbar from "./components/Navbar";
+import Home from "./pages/Home";
+import FarmerForm from "./components/FarmerForm";
+import ResultCard from "./components/ResultCard";
+import PriceChart from "./components/PriceChart";
+import DownloadReport from "./components/DownloadReport";
+import BestWorstChart from "./components/BestWorstChart";
+import LiveMandiCard from "./components/LiveMandiCard";
+import BestSellingDayCard from "./components/BestSellingDayCard";
+import DistrictComparisonChart from "./components/DistrictComparisonChart";
+import "./App.css";
+
+function App() {
+  const [page, setPage] = useState("home"); // home | select | results
+  const [result, setResult] = useState(null);
+  const [selectedCrop, setSelectedCrop] = useState("");
+  const [trend, setTrend] = useState([]);
+
+  /* ===============================
+     FETCH TREND
+  ================================ */
+  useEffect(() => {
+    if (!selectedCrop) return;
+
+    fetch(`http://localhost:8080/api/live/price-trend?crop=${selectedCrop}`)
+      .then(res => res.json())
+      .then(setTrend)
+      .catch(() => {});
+  }, [selectedCrop]);
+
+  /* ===============================
+     ✅ SWIPE BACK / NEXT (2 FINGERS)
+  ================================ */
+  useEffect(() => {
+    let startX = 0;
+    let fingers = 0;
+
+    const handleStart = (e) => {
+      if (!e.touches) return;
+      fingers = e.touches.length;
+      if (fingers === 2) {
+        startX = e.touches[0].clientX;
+      }
+    };
+
+    const handleEnd = (e) => {
+      if (!e.changedTouches) return;
+
+      if (fingers === 2) {
+        const endX = e.changedTouches[0].clientX;
+        const diff = endX - startX;
+
+        // 👉 SWIPE RIGHT = BACK
+        if (diff > 80) {
+          if (page === "results") setPage("select");
+          else if (page === "select") setPage("home");
+        }
+
+        // 👈 SWIPE LEFT = NEXT
+        if (diff < -80) {
+          if (page === "home") setPage("select");
+          else if (page === "select") setPage("results");
+        }
+      }
+      fingers = 0;
+    };
+
+    window.addEventListener("touchstart", handleStart);
+    window.addEventListener("touchend", handleEnd);
+
+    return () => {
+      window.removeEventListener("touchstart", handleStart);
+      window.removeEventListener("touchend", handleEnd);
+    };
+  }, [page]);
+
+  return (
+    <>
+      <Navbar />
+
+      {/* 🟢 HOME PAGE */}
+      {page === "home" && (
+        <Home onExploreAnalytics={() => setPage("select")} />
+      )}
+
+      {/* 🟡 SELECT CROP PAGE */}
+      {page === "select" && (
+        <FarmerForm
+          setResult={setResult}
+          setSelectedCrop={setSelectedCrop}
+          onAnalyzeSuccess={() => setPage("results")}
+        />
+      )}
+
+      {/* 🔵 RESULTS PAGE */}
+      {page === "results" && (
+        <div className="analytics-page app-container">
+
+          {/* ✅ THIS WRAPPER IS REQUIRED FOR PDF */}
+          <div id="report-section">
+            <div className="dashboard-grid">
+              <ResultCard result={result} />
+              <BestWorstChart result={result} />
+
+              {selectedCrop && <LiveMandiCard crop={selectedCrop} />}
+              {trend.length > 0 && (
+                <BestSellingDayCard crop={selectedCrop} />
+              )}
+              {trend.length > 0 && (
+                <DistrictComparisonChart data={trend} />
+              )}
+            </div>
+          </div>
+
+    <DownloadReport />
+
+
+
+          {trend.length > 0 && (
+            <PriceChart selectedCrop={selectedCrop} />
+          )}
+        </div>
+      )}
+
+      {/* ===============================
+         ✅ BACK + NEXT ARROWS (FIXED)
+      ================================ */}
+      <div className="page-nav">
+        {/* ⬅ BACK */}
+        {page !== "home" && (
+          <button
+            className="nav-back-btn"
+            onClick={() => {
+              if (page === "results") setPage("select");
+              else if (page === "select") setPage("home");
+            }}
+          >
+            ← Back
+          </button>
+        )}
+
+        {/* ➡ NEXT */}
+        {page !== "results" && (
+          <button
+            className="nav-next-btn"
+            onClick={() => {
+              if (page === "home") setPage("select");
+              else if (page === "select") setPage("results");
+            }}
+          >
+            Next →
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
+export default App;
+
+
+import { useEffect, useState } from "react";
+
+function FarmerForm({ setResult, setSelectedCrop, onAnalyzeSuccess }) {
+  const [crop, setCrop] = useState("");
+  const [district, setDistrict] = useState("");
+  const [date, setDate] = useState("");
+
+  const [cropList, setCropList] = useState([]);
+  const [districtList, setDistrictList] = useState([]);
+  const [dateList, setDateList] = useState([]);
+
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetch("http://localhost:8080/api/live/crops")
+      .then(res => res.json())
+      .then(list => {
+        setCropList(list);
+        if (list.length > 0) setCrop(list[0]);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!crop) return;
+
+    setSelectedCrop(crop);
+
+    fetch(`http://localhost:8080/api/live/districts?crop=${crop}`)
+      .then(res => res.json())
+      .then(list => {
+        setDistrictList(list);
+        setDistrict("");
+        setDate("");
+        setDateList([]);
+      });
+  }, [crop, setSelectedCrop]);
+
+  useEffect(() => {
+    if (!crop || !district) return;
+
+    fetch(
+      `http://localhost:8080/api/live/dates?crop=${crop}&district=${district}`
+    )
+      .then(res => res.json())
+      .then(list => {
+        setDateList(list);
+        setDate("");
+      });
+  }, [crop, district]);
+
+  const analyze = async () => {
+    if (!crop) return;
+
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `http://localhost:8080/api/analyze?crop=${encodeURIComponent(crop)}`
+      );
+      const data = await res.json();
+
+      localStorage.setItem("pdf_result", JSON.stringify(data));
+      localStorage.setItem("pdf_crop", crop);
+
+      setResult(data);
+      onAnalyzeSuccess();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="analytics-page">
+      <div className="card">
+        <h3>Select Crop</h3>
+
+        <select value={crop} onChange={e => setCrop(e.target.value)}>
+          {cropList.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+
+        {districtList.length > 0 && (
+          <select value={district} onChange={e => setDistrict(e.target.value)}>
+            <option value="">Select District</option>
+            {districtList.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        )}
+
+        {dateList.length > 0 && (
+          <select value={date} onChange={e => setDate(e.target.value)}>
+            <option value="">Select Date</option>
+            {dateList.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        )}
+
+        <button onClick={analyze} disabled={loading}>
+          {loading ? "Analyzing..." : "Analyze"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default FarmerForm;
