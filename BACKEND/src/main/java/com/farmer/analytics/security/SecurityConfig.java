@@ -1,4 +1,4 @@
-﻿package com.farmer.analytics.security;
+package com.farmer.analytics.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
