@@ -36,8 +36,7 @@ public class LiveMarketFetcher {
     @Value("${gov.api.max-pages-per-run:5}")
     private int maxPagesPerRun;
 
-    // 🔁 Runs on configured fixed rate
-    @Transactional
+    // ðŸ” Runs on configured fixed rate
     @Scheduled(fixedRateString = "${gov.api.fetch-fixed-rate-ms:300000}")
     public void fetchLivePrices() {
 
@@ -73,9 +72,9 @@ public class LiveMarketFetcher {
                 String response = restTemplate.getForObject(url, String.class);
                 JsonNode root = mapper.readTree(response);
 
-                // ✅ SAFETY CHECK
+                // âœ… SAFETY CHECK
                 if (!root.has("records")) {
-                    System.out.println("❌ NO RECORDS FOUND – CHECK API KEY");
+                    System.out.println("âŒ NO RECORDS FOUND â€“ CHECK API KEY");
                     return;
                 }
 
@@ -88,7 +87,7 @@ public class LiveMarketFetcher {
 
                 for (JsonNode node : records) {
 
-                    // 🔐 REQUIRED FIELDS CHECK
+                    // ðŸ” REQUIRED FIELDS CHECK
                     if (!node.has("commodity") || !node.has("modal_price")) continue;
 
                     String state = node.path("state").asText().trim();
@@ -141,13 +140,13 @@ public class LiveMarketFetcher {
             }
 
             System.out.println(
-                    "✅ LIVE FETCH COMPLETE | fetched=" + totalFetched +
+                    "âœ… LIVE FETCH COMPLETE | fetched=" + totalFetched +
                             " saved=" + savedCount +
                             " duplicatesSkipped=" + duplicateCount
             );
 
         } catch (Exception e) {
-            System.out.println("❌ LIVE FETCH ERROR");
+            System.out.println("âŒ LIVE FETCH ERROR");
             e.printStackTrace();
         }
     }
