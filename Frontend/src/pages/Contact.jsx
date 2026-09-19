@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { parseJwt } from "../utils/auth";
 
-const CONTACT_API = "${import.meta.env.VITE_API_URL||"http://localhost:8081"}/api/contact";
+const CONTACT_API = `${import.meta.env.VITE_API_URL|| 'http://localhost:8081'}/api/contact`;
 
 function Contact() {
   const navigate = useNavigate();

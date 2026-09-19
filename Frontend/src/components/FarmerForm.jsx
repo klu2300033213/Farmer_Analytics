@@ -25,7 +25,7 @@ function FarmerForm({ setLiveRows, setSelection, setSelectedCrop, setResult, onA
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch("${import.meta.env.VITE_API_URL||"http://localhost:8081"}/api/live/states")
+    fetch(`${import.meta.env.VITE_API_URL|| 'http://localhost:8081'}/api/live/states`)
       .then(res => res.json())
       .then(list => {
         setStateList(list);

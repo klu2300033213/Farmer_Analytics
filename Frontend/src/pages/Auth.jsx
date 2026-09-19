@@ -5,7 +5,7 @@ import { parseJwt } from "../utils/auth";
 import { useI18n } from "../i18n/I18nProvider";
 import "../App.css";
 
-const API = "${import.meta.env.VITE_API_URL||"http://localhost:8081"}/api/auth";
+const API = `${import.meta.env.VITE_API_URL|| 'http://localhost:8081'}/api/auth`;
 
 function Auth() {
   const { t } = useI18n();

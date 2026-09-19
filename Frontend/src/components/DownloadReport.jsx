@@ -14,7 +14,7 @@ function DownloadReport({ disabled, pdfPayload }) {
         token: localStorage.getItem("token") || "pdf",
       };
 
-      const res = await fetch("${import.meta.env.VITE_API_URL||"http://localhost:8081"}/api/pdf/download", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL|| 'http://localhost:8081'}/api/pdf/download`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
