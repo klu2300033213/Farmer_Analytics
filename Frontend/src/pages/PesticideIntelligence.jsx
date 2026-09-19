@@ -159,7 +159,7 @@ export default function PesticideIntelligence() {
 
   useEffect(() => {
     Promise.allSettled(
-      ["http://localhost:8080", "http://localhost:8081"].map(base =>
+      [`${import.meta.env.VITE_API_URL || "${import.meta.env.VITE_API_URL||"http://localhost:8081"}"}`, `${import.meta.env.VITE_API_URL || "${import.meta.env.VITE_API_URL||"http://localhost:8081"}"}`].map(base =>
         fetch(`${base}/api/live/crops-all`).then(r => { if (!r.ok) throw new Error(); return r.json(); })
       )
     ).then(results => {
@@ -674,3 +674,6 @@ export default function PesticideIntelligence() {
     </div>
   );
 }
+
+
+

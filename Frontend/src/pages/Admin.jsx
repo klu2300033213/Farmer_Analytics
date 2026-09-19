@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { getCurrentRole } from "../utils/auth";
 
-const API_BASE = "http://localhost:8080/api/admin";
+const API_BASE = "${import.meta.env.VITE_API_URL||"http://localhost:8081"}/api/admin";
 const APPROVED_GUIDES_STORAGE_KEY = "pesticide_approved_guides";
 const GUIDE_LANGUAGE_OPTIONS = ["en", "hi", "te"];
 
@@ -151,7 +151,7 @@ function Admin() {
   const loadPesticideMeta = async () => {
     try {
       const [statsRes, logsRes] = await Promise.all([
-        axios.get("http://localhost:8080/api/pesticides/stats", { headers }),
+        axios.get("${import.meta.env.VITE_API_URL||"http://localhost:8081"}/api/pesticides/stats", { headers }),
         axios.get(`${API_BASE}/pesticides/import-logs`, { headers }),
       ]);
 
@@ -994,3 +994,6 @@ function Admin() {
 }
 
 export default Admin;
+
+
+

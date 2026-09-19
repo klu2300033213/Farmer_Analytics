@@ -28,7 +28,7 @@ function DistrictComparisonChart({ crop }) {
   useEffect(() => {
     if (!crop) return;
 
-    fetch(`http://localhost:8080/api/live/district-compare?crop=${crop}`)
+    fetch(`${import.meta.env.VITE_API_URL||"http://localhost:8081"}/api/live/district-compare?crop=${crop}`)
       .then(res => res.json())
       .then(payload => setData(normalizeData(payload)))
       .catch(() => setData([]));
@@ -209,3 +209,6 @@ function DistrictComparisonChart({ crop }) {
 }
 
 export default DistrictComparisonChart;
+
+
+

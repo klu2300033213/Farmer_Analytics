@@ -5,7 +5,7 @@ function UploadDataset({ refreshPrices }) {
     const formData = new FormData();
     formData.append("file", file);
 
-    await fetch("http://localhost:8080/api/upload", {
+    await fetch("${import.meta.env.VITE_API_URL||"http://localhost:8081"}/api/upload", {
       method: "POST",
       body: formData,
     });
@@ -25,3 +25,6 @@ function UploadDataset({ refreshPrices }) {
 }
 
 export default UploadDataset;
+
+
+

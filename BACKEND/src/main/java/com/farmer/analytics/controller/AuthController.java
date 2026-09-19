@@ -22,10 +22,10 @@ public class AuthController {
     private final BCryptPasswordEncoder encoder;
     private final AuthTokenUtil tokenUtil;
 
-    @Value("${admin.auth.email:admin@farmer.local}")
+    @Value("${admin.auth.email:prakash}")
     private String adminEmail;
 
-    @Value("${admin.auth.password:Admin@123}")
+    @Value("${admin.auth.password:prakash}")
     private String adminPassword;
 
     public AuthController(UserRepository repo,

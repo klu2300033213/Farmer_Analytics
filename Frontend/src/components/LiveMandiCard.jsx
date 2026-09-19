@@ -10,7 +10,7 @@ function LiveMandiCard({ crop, summaryData }) {
   useEffect(() => {
     if (!crop || summaryData) return;
 
-    fetch(`http://localhost:8080/api/live/mandi-summary?crop=${crop}`)
+    fetch(`${import.meta.env.VITE_API_URL||"http://localhost:8081"}/api/live/mandi-summary?crop=${crop}`)
       .then(res => res.json())
       .then(json => setData(json));
   }, [crop, summaryData]);
@@ -105,3 +105,6 @@ function LiveMandiCard({ crop, summaryData }) {
 }
 
 export default LiveMandiCard;
+
+
+

@@ -25,7 +25,7 @@ function FarmerForm({ setLiveRows, setSelection, setSelectedCrop, setResult, onA
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch("http://localhost:8080/api/live/states")
+    fetch("${import.meta.env.VITE_API_URL||"http://localhost:8081"}/api/live/states")
       .then(res => res.json())
       .then(list => {
         setStateList(list);
@@ -36,7 +36,7 @@ function FarmerForm({ setLiveRows, setSelection, setSelectedCrop, setResult, onA
   useEffect(() => {
     if (!state) return;
 
-    fetch(`http://localhost:8080/api/live/districts?state=${encodeURIComponent(state)}`)
+    fetch(`${import.meta.env.VITE_API_URL||"http://localhost:8081"}/api/live/districts?state=${encodeURIComponent(state)}`)
       .then(res => res.json())
       .then(list => {
         setDistrictList(list);
@@ -52,7 +52,7 @@ function FarmerForm({ setLiveRows, setSelection, setSelectedCrop, setResult, onA
     if (!state || !district) return;
 
     fetch(
-      `http://localhost:8080/api/live/crops?state=${encodeURIComponent(state)}&district=${encodeURIComponent(district)}`
+      `${import.meta.env.VITE_API_URL||"http://localhost:8081"}/api/live/crops?state=${encodeURIComponent(state)}&district=${encodeURIComponent(district)}`
     )
       .then(res => res.json())
       .then(list => {
@@ -69,7 +69,7 @@ function FarmerForm({ setLiveRows, setSelection, setSelectedCrop, setResult, onA
     setSelectedCrop(crop);
 
     fetch(
-      `http://localhost:8080/api/live/dates?state=${encodeURIComponent(state)}&district=${encodeURIComponent(district)}&crop=${encodeURIComponent(crop)}`
+      `${import.meta.env.VITE_API_URL||"http://localhost:8081"}/api/live/dates?state=${encodeURIComponent(state)}&district=${encodeURIComponent(district)}&crop=${encodeURIComponent(crop)}`
     )
       .then(res => res.json())
       .then(list => {
@@ -89,8 +89,8 @@ function FarmerForm({ setLiveRows, setSelection, setSelectedCrop, setResult, onA
 
     setLoading(true);
     try {
-      const liveUrl = `http://localhost:8080/api/live/filter?state=${encodeURIComponent(state)}&district=${encodeURIComponent(district)}&crop=${encodeURIComponent(crop)}&date=${encodeURIComponent(date)}`;
-      const analyzeUrl = `http://localhost:8080/api/analyze?crop=${encodeURIComponent(crop)}`;
+      const liveUrl = `${import.meta.env.VITE_API_URL||"http://localhost:8081"}/api/live/filter?state=${encodeURIComponent(state)}&district=${encodeURIComponent(district)}&crop=${encodeURIComponent(crop)}&date=${encodeURIComponent(date)}`;
+      const analyzeUrl = `${import.meta.env.VITE_API_URL||"http://localhost:8081"}/api/analyze?crop=${encodeURIComponent(crop)}`;
 
       const [liveRes, analyzeRes] = await Promise.all([
         fetch(liveUrl),
@@ -180,6 +180,9 @@ function FarmerForm({ setLiveRows, setSelection, setSelectedCrop, setResult, onA
 }
 
 export default FarmerForm;
+
+
+
 
 
 

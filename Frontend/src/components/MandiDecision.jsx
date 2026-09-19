@@ -14,7 +14,7 @@ function MandiDecision({ crop, summaryData }) {
   useEffect(() => {
     if (!crop || summaryData) return;
 
-    fetch(`http://localhost:8080/api/live/mandi-summary?crop=${crop}`)
+    fetch(`${import.meta.env.VITE_API_URL||"http://localhost:8081"}/api/live/mandi-summary?crop=${crop}`)
       .then(res => {
         if (!res.ok) throw new Error("API failed");
         return res.json();
@@ -129,3 +129,6 @@ function MandiDecision({ crop, summaryData }) {
 }
 
 export default MandiDecision;
+
+
+

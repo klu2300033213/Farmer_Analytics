@@ -225,7 +225,7 @@ function App() {
     if (!selectedCrop) return;
 
     axios
-      .get(`http://localhost:8080/api/live/price-trend?crop=${selectedCrop}`)
+      .get(`${import.meta.env.VITE_API_URL||"http://localhost:8081"}/api/live/price-trend?crop=${selectedCrop}`)
       .then((res) => setTrend(res.data))
       .catch(() => {});
   }, [selectedCrop]);
@@ -237,7 +237,7 @@ function App() {
     }
 
     axios
-      .get(`http://localhost:8080/api/live/mandi-summary?crop=${selectedCrop}`)
+      .get(`${import.meta.env.VITE_API_URL||"http://localhost:8081"}/api/live/mandi-summary?crop=${selectedCrop}`)
       .then((res) => setMandiSummary(res.data))
       .catch(() => setMandiSummary(null));
   }, [selectedCrop]);
@@ -308,3 +308,6 @@ function App() {
 }
 
 export default App;
+
+
+
